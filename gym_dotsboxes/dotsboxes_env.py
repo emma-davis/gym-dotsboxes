@@ -3,55 +3,54 @@ import gym
 from gym import spaces
 import logging
 
+# SET UP VARS
 CODE_MARK_MAP = {0: '-', 1: 'A', 2: 'B'}
 NUM_ACTIONS = 24
 GRID_SIZE = 4 # NUM DOTS ALONG X AND Y (SQUARE GRID FOR NOW)
 POS_REWARD = 1
 NEG_REWARD = -1
 NO_REWARD = 0
-
 MARGIN = '  '
 
 
-def tomark(code):
-    return CODE_MARK_MAP[code]
+# RETURN THE MARK RELATING TO THE NUMBER
+def to_mark(num):
+    return CODE_MARK_MAP[num]
 
 
-def tocode(mark):
+# RETURN THE NUMBER RELATING TO THE MARK
+def to_num(mark):
     return 1 if mark == 'A' else 2
 
 
+# RETURN THE MARK OF NEXT PLAYER
 def next_mark(mark):
     return 'B' if mark == 'A' else 'A'
 
 
+# RETURNS AGENT ASSOCIATED WITH MARK
 def agent_by_mark(agents, mark):
     for agent in agents:
         if agent.mark == mark:
             return agent
 
 
+# EXECUTES ACTION ON BOARD AND RETURNS RESULTING STATE
 def after_action_state(state, action):
-    """Execute an action and returns resulted state.
-    Args:
-        state (tuple): Board status + mark
-        action (int): Action to run
-    Returns:
-        tuple: New state
-    """
-
     board, mark = state
     nboard = list(board[:])
-    nboard[action] = tocode(mark)
+    nboard[action] = to_num(mark)
     nboard = tuple(nboard)
     return nboard, next_mark(mark)
 
 
+# CHECKS STATUS OF BOARD, WHICH INCLUDES STATUS OF WINS/DRAWS AND PLAYER SCORES
 def check_game_status(board):
     """
-    Returns a list of [a_total, b_total, a_win, b_win], where each total is the number
+    Returns a list of [a_total, b_total, a_win, b_win, draw], where each total is the number
     of complete squares each player has and each win is a boolean (T/F) stating if that
-    player has won yet.
+    player has won yet, or if players have drawn.
+    
     """
 
     start_x = [0, 1, 2, 7, 8, 9, 14, 15, 16]
@@ -94,6 +93,7 @@ def check_game_status(board):
     return [a_total, b_total, a_win, b_win, draw]
 
 
+# ENVIRONMENT CLASS
 class DotsBoxesEnv(gym.Env):
     metadata = {'render.modes': ['human']}
 
@@ -115,14 +115,11 @@ class DotsBoxesEnv(gym.Env):
         return self.get_obs()
 
     def step(self, action):
-        """Step environment by action.
-        Args:
-            action (int): Location
-        Returns:
-            list: Obeservation
-            int: Reward
-            bool: Done
-            dict: Additional information
+        """
+        Returns observation of board once action is performed on it, the reward gained by agent,
+        whether the game is done as a result of the action and any extra information (currently set
+        as None).
+
         """
         assert self.action_space.contains(action)
 
@@ -136,7 +133,7 @@ class DotsBoxesEnv(gym.Env):
         # BOARD AGAIN TO COMPARE
         a_old_total, b_old_total, a_old_win, b_old_win, old_draw = check_game_status(self.board)
         
-        self.board[loc] = tocode(self.mark)
+        self.board[loc] = to_num(self.mark)
         a_total, b_total, a_win, b_win, draw = check_game_status(self.board)
 
         if a_win == True | b_win == True | draw == True:
@@ -153,46 +150,39 @@ class DotsBoxesEnv(gym.Env):
         # IF CURRENT MARK IS A AND A HAS GAINED ONE SQUARE, THEN REWARD A
         # DO SAME FOR B, ELSE IF CURRENT MARKS HAVE NOT WON SQUARES THEN MOVE ON
         # TO NEXT MARK
-        if (tocode(self.mark) == 1) & (a_total - a_old_total > 0):
+        if (to_num(self.mark) == 1) & (a_total - a_old_total > 0):
             reward = POS_REWARD
-        elif (tocode(self.mark) == 2) & (b_total - b_old_total > 0):
+        elif (to_num(self.mark) == 2) & (b_total - b_old_total > 0):
             reward = POS_REWARD
         else:
             self.mark = next_mark(self.mark)
 
-        """
-        # CURRENT MARK IS A AND NOT GAINED 
-            elif a_total == a_old_total:
-                self.mark = next_mark(self.mark)
-
-
-        elif tocode(self.mark) == 2:
-            if b_total - b_old_total > 0:
-                reward = POS_REWARD
-
-            elif b_total == a_old_total:
-                self.mark = next_mark(self.mark)
-        """
-
         return self.get_obs(), reward, self.done, None
-
+    
+    
+    # RETURNS CURRENT STATE OF BOARD AND MARK OF CURRENT PLAYER
     def get_obs(self):
         return tuple(self.board), self.mark
 
 
+    # PRINTS BOARD UNLESS GUI SHOULD BE CLOSED
     def render(self, close=False):
         if close:
             return
         self.print_board()
 
 
+    # DEFINES THE FORMATTING OF BOARD AND PRINTS CURRENT STATE
     def print_board(self):
-        """Draw dots and boxes board."""
+        """
+        Draw dots and boxes board.
+        
+        """
         # TODO: MAKE THIS MORE DYNAMIC AT SOME POINT TO CATER FOR DIFFERENT
         # BOARD SIZES
         for j in range(0, NUM_ACTIONS, 7):
             def mark(i):
-                return tomark(self.board[i]) if not self.show_number or\
+                return to_mark(self.board[i]) if not self.show_number or\
                     self.board[i] != 0 else str(i+1)
             if j == 21:
                 print(MARGIN + 'o' + 'o'.join([mark(i) for i in range(j, j+3)]) + 'o')
