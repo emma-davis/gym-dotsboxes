@@ -3,8 +3,11 @@ Dots and Boxes in Python Gym with two Dyna-Q+ Agents
 
 How to run:
 Will not work for Python 3.8 or any versions below Python 3.5. Make sure the package gym is installed, then do the following in cmd:
+
 cd gym-dotsboxes
+
 pip install -e .
+
 
 To run a game between two agents, please run basic_agent.py.
 
