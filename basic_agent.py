@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import random
-from gym_dotsboxes.dotsboxes_env import DotsBoxesEnv, agent_by_mark, check_game_status, after_action_state, tomark, next_mark
+from gym_dotsboxes.dotsboxes_env import DotsBoxesEnv, agent_by_mark, check_game_status, after_action_state, to_mark, next_mark
 
 
 class BaseAgent(object):
