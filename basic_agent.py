@@ -2,7 +2,7 @@
 import random
 from gym_dotsboxes.dotsboxes_env import DotsBoxesEnv, agent_by_mark, check_game_status, after_action_state, to_mark, next_mark
 
-
+# BASIC AGENT CLASS
 class BaseAgent(object):
     def __init__(self, mark):
         self.mark = mark
@@ -18,6 +18,7 @@ class BaseAgent(object):
         return random.choice(ava_actions)
 
 
+# START GAME AND TWO AGENTS WITHIN ENVIRONMENT
 def play(max_episode=1):
     episode = 0
     start_mark = 'A'
@@ -48,7 +49,7 @@ def play(max_episode=1):
             else:
                 _, mark = state
 
-        # rotate start
+        # SWITCH STARTING AGENT FOR EACH GAME
         start_mark = next_mark(start_mark)
         episode += 1
 
