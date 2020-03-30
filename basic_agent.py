@@ -8,6 +8,7 @@ class BaseAgent(object):
         self.mark = mark
 
     def act(self, state, ava_actions):
+        print(ava_actions)
         for action in ava_actions:
             nstate = after_action_state(state, action)
             a_total, b_total, a_win, b_win, draw = check_game_status(nstate[0])

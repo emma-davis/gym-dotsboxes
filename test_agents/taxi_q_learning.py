@@ -40,6 +40,7 @@ for i in range(1, 100001):
         if random.uniform(0, 1) < epsilon:
             action = env.action_space.sample()
         else:
+            print(state)
             # GETS POSITION OF MAX REWARD ALONG X AXIS OF STATE IN Q-VALUE MATRIX
             action = np.argmax(q_values[state])
 
@@ -60,8 +61,8 @@ for i in range(1, 100001):
         state = next_state
         epochs += 1
 
-    if i % 100 == 0:
-        print("Episode: ", i)
+    #if i % 100 == 0:
+        #print("Episode: ", i)
 
 end = time.perf_counter()
 print("Training finished. Time taken: ", end - start)
