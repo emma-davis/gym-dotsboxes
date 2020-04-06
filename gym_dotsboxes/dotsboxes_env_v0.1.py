@@ -1,18 +1,16 @@
-# ENV VERSION 0.2 #
-# CHANGES FROM VERSION 0.1: #
-# - ALLOWED GRID TO BE ANY YxY SIZE, NOT JUST 4x4 #
-
 from functools import reduce
 import gym
 from gym import spaces
 import logging
 import numpy as np
-import math
 
 # SET UP VARS
 CODE_MARK_MAP = {0: '-', 1: 'A', 2: 'B'}
+NUM_ACTIONS = 24
 GRID_SIZE = 4 # NUM DOTS ALONG X AND Y (SQUARE GRID FOR NOW)
-NUM_ACTIONS = 2 * GRID_SIZE * (GRID_SIZE - 1)
+POS_REWARD = 1
+NEG_REWARD = -1
+NO_REWARD = 0
 MARGIN = '  '
 
 
@@ -50,19 +48,33 @@ def after_action_state(state, action):
 # CHECKS STATUS OF BOARD, WHICH INCLUDES STATUS OF WINS/DRAWS AND PLAYER SCORES
 def check_game_status(board, a_score, b_score):
     """
-    Returns a list of [a_win, b_win, draw], where each total is the number
+    Returns a list of [a_total, b_total, a_win, b_win, draw], where each total is the number
     of complete squares each player has and each win is a boolean (T/F) stating if that
     player has won yet, or if players have drawn.
     
     """
 
+    start_x = [0, 1, 2, 7, 8, 9, 14, 15, 16]
     a_total = a_score
     b_total = b_score
     a_win = False
     b_win = False
     draw = False
 
-    # TODO: CHANGE BELOW TO DEAL WITH ALL GRID SIZES, NOT JUST 4X4 (AS IS CURRENTLY)
+    # ~~~~~ SCORING IS NO LONGER DONE IN THIS FUNCTION, TODO: REMOVE THE BELOW ~~~~~
+    # ~~~~~ ONCE SCORING HAS BEEN PLACED ELSEWHERE ~~~~~
+
+    ## ITERATE THROUGH 1 (PLAYER A) AND 2 (PLAYER B) ON BOARD TO CHECK
+    ## FOR COMPLETE SQUARES. SQUARE RULE IS [X, X+3, X+4, X+7]
+    #for t in [1, 2]:
+    #    for x in start_x:
+    #        if [board[x], board[x + 3], board[x + 4], board[x + 7]] == [t]*4:
+    #            if t == 1:
+    #                a_total += 1
+    #            else:
+    #                b_total += 1
+
+    # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         
     # IF A PLAYER HAS A SCORE OF 5 OR MORE, THEY AUTOMATICALLY WIN AS IT ISN'T POSSIBLE
     # FOR THE OTHER PLAYER TO GET 5 OR HIGHER.
@@ -95,7 +107,7 @@ class DotsBoxesEnv(gym.Env):
         self.action_space = spaces.Discrete(NUM_ACTIONS)
         self.observation_space = spaces.Discrete(NUM_ACTIONS)
         self.set_start_mark('A')
-        self.start_state = np.random.randint(0, NUM_ACTIONS)
+        self.start_state = np.random.randint(0, 24)
         self.show_number = show_number
         self.seed()
         self.reset()
@@ -119,30 +131,14 @@ class DotsBoxesEnv(gym.Env):
         as None).
         """
 
-        square_starts_num = int((GRID_SIZE - 1) ** 2)
-        square_starts_per_row = int(math.sqrt(square_starts_num))
-        square_row_steps = int(NUM_ACTIONS / (GRID_SIZE - 1) - 1)
-
         # GET TOTALS OF PLAYERS BEFORE ACTION COMPLETED IN THIS STEP
         a_old_total = self.a_score
         b_old_total = self.b_score
 
-        square_starts = []
-        square_combos = []
-        
-        # CREATE A LIST OF ALL THE STARTING NUMBER EDGES OF ALL SQUARES
-        # POSSIBLE FOR SPECIFIC GRID
-        for i in range(0, NUM_ACTIONS - square_row_steps, square_row_steps):
-            for j in range(0, square_starts_per_row):
-                square_starts.append(i + j)
-
-        for i in square_starts:
-            square_side_step = GRID_SIZE - 1
-            square_combos.append([i, i + square_side_step, i + square_side_step + 1,
-                                  i + (2 * square_side_step) + 1])
-
-        print(square_combos)
-        
+        # ALL SQUARE COMBINATIONS POSSIBLE
+        square_combos = [[0,3,4,7], [1,4,5,8], [2,5,6,9],
+                         [7,10,11,14], [8,11,12,15], [9,12,13,16],
+                         [14,17,18,21], [15,18,19,22], [16,19,20,23]]
 
         # ITERATE THROUGH ALL SQUARE COMBINATIONS TO SEE IF THIS CURRENT ACTION
         # IS THE ONE THAT WILL COMPLETE SQUARE(S), THUS GAINING AGENT REWARDS
@@ -195,16 +191,29 @@ class DotsBoxesEnv(gym.Env):
         print(" B New Total: ", self.b_score)
         print("A Win: ", a_win, " B Win: ", b_win, " Draw: ", draw, "\n")
 
+        # ~~~~~ START OF REWARD SYSTEM ~~~~~
+        # THIS SECTION WILL CHANGE FREQUENTLY DEPENDING ON WHICH REWARD SYSTEMS WORK
+        # BEST. CURRENTLY GIVE SMALL REWARDS FOR SEMI-COMPLETE BOXES, LARGE REWARDS FOR
+        # FULLY COMPLETE BOXES AND SOME REWARDS FOR INTERCEPTED BOXES (WHERE THE OPPOSING
+        # PLAYER HAS 3 SIDES DOWN AND THE PLAYER INTERCEPTS THE LAST SIDE)
+
+        # NEED TO HAVE SYSTEM WHERE AGENTS WANT TO COMPLETE BOXES, EITHER MADE BY THEMSELVES
+        # THEIR OPPONENT OR A COMBINATION OF THE TWO.
+
+        # WANT TO PENALISE AGENTS FOR LETTING OPPONENTS GET BIG CHAINS
         
+        # CHECK IF A OR B HAVE WON A SQUARE IN THIS STEP, IF THEY HAVE THEN SET REWARDS
+        # ACCORDINGLY AND KEEP CURRENT MARK SAME AS WINNER TO GIVE THEM ANOTHER TURN
+
         # IF CURRENT MARK IS A AND A HAS GAINED ONE SQUARE, THEN REWARD A
         # DO SAME FOR B, ELSE IF CURRENT MARKS HAVE NOT WON SQUARES THEN MOVE ON
         # TO NEXT MARK
         # TODO: THIS IS PROBABLY REDUNDANT, AS WE WILL HAVE SEPARATE QVALUES FOR
         # EACH AGENT
         if (to_num(self.mark) == 1) & (a_total - a_old_total > 0):
-            reward = 10
+            reward = POS_REWARD
         elif (to_num(self.mark) == 2) & (b_total - b_old_total > 0):
-            reward = 10
+            reward = POS_REWARD
         else:
             self.mark = next_mark(self.mark)
 
@@ -231,18 +240,15 @@ class DotsBoxesEnv(gym.Env):
         """
         # TODO: MAKE THIS MORE DYNAMIC AT SOME POINT TO CATER FOR DIFFERENT
         # BOARD SIZES
-        square_row_steps = int(NUM_ACTIONS / (GRID_SIZE - 1) - 1)
-        cutoff_num = NUM_ACTIONS - GRID_SIZE + 1
-        
-        for j in range(0, NUM_ACTIONS, square_row_steps):
+        for j in range(0, NUM_ACTIONS, 7):
             def mark(i):
                 return to_mark(self.board[i]) if not self.show_number or\
                     self.board[i] != 0 else str(i+1)
-            if j == cutoff_num:
-                print(MARGIN + 'o' + 'o'.join([mark(i) for i in range(j, j+GRID_SIZE-1)]) + 'o')
+            if j == 21:
+                print(MARGIN + 'o' + 'o'.join([mark(i) for i in range(j, j+3)]) + 'o')
             else:
-                print(MARGIN + 'o' + 'o'.join([mark(i) for i in range(j, j+GRID_SIZE-1)]) + 'o')
-                print(MARGIN + ' '.join([mark(i) for i in range(j+GRID_SIZE-1, j+(2*GRID_SIZE)-1)]))
+                print(MARGIN + 'o' + 'o'.join([mark(i) for i in range(j, j+3)]) + 'o')
+                print(MARGIN + ' '.join([mark(i) for i in range(j+3, j+7)]))
 
 
     def print_turn(self, mark):

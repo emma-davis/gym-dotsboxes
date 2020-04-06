@@ -1,14 +1,15 @@
 #!/usr/bin/env python
-import random
 from gym_dotsboxes.dotsboxes_env import DotsBoxesEnv, agent_by_mark, check_game_status, after_action_state, to_mark, next_mark
 import numpy as np
 import random
 import time
+import math
 
 # TODO: ADD REWARD SYSTEM THAT ENCOURAGES AGENTS TO MAKE BOXES OR INTERCEPT OPPOSING
 # BOXES
-# TODO: ADD SEPARATE QVALUES MATRICES FOR PLAYERS A AND B
-# TODO: FIX ISSUE WHERE AGENTS OVERRIDE EXISTING PLAYS ON BOARD
+# TODO: AGENTS SEEM MORE INCLINED TO COMPLETE SQUARES THAT THEY'VE CONTRIBUTED A LOT
+# TO, SO EASY WINS WHERE OPPOSITION HAS CONTRIBUTED A LOT TO SQUARE ARE USUALLY NOT
+# TAKEN. THINK OF WAY TO UPDATE BOTH PLAYERS QVALUES WHEN ONE PLAYER PLAYS
 
 
 # ~~~ METHOD 2: Q LEARNING ~~~
@@ -35,7 +36,7 @@ class QLearningAgent(object):
 
 
 # START GAME AND TWO AGENTS WITHIN ENVIRONMENT
-def play(max_episode=2):
+def play(max_episode=20):
 
     env = DotsBoxesEnv()
     
@@ -89,17 +90,18 @@ def play(max_episode=2):
             # MORE RANDOM ACTIONS. ELSE, PERFORM ACTION WHERE Q-VALUES HAVE BEEN LEARNED
             if random.uniform(0, 1) < epsilon:
                 action = env.action_space.sample()
+
+                # TODO: ADD FIX STOPPING THIS FROM HAPPENING!
+                if action in unava_actions:
+                    print("Random action in unavailable actions!")
                 
             else:
-                # FOR THE Q_VALUES OF CURRENT STATE, MAKE THE VALUES FOR POSITIONS THAT
-                # ALREADY HAVE MARKS ON THEM -10
-                temp_values = q_values[state_num]
+                # APPLY MASK TO Q_VALUES TO EXCLUDE UNAVAILABLE ACTIONS
+                mask = np.zeros(len(q_values[state_num]), dtype = bool)
+                mask[unava_actions] = True
+                temp_values = np.ma.array(q_values[state_num], mask = mask)
                 print(temp_values)
 
-                for i in unava_actions:
-                    temp_values[i] = -10
-
-                print(temp_values)
                 
                 # GETS POSITION OF MAX REWARD ALONG X AXIS OF STATE IN Q-VALUE MATRIX
                 action = np.argmax(temp_values)
@@ -148,9 +150,10 @@ def play(max_episode=2):
         #start_mark = next_mark(start_mark)
         episode += 1
 
-        print(q_values_a)
-        print("\n")
-        print(q_values_b)
+
+    print(q_values_a)
+    print("\n\n\n")
+    print(q_values_b)
         
 
 
