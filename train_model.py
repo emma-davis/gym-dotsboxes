@@ -5,55 +5,6 @@ from gym_dotsboxes.environment import DotsBoxesEnv
 from players import GreedyPlayer, DQNPlayer
 import random
 
-"""
-def test(test_env, training_player, test_player, num_games):
-
-    Tests an environment against a test agent
-    :param test_env: game environment
-    :param train: learning agent
-    :param test: testing agent
-    :param test_games: number of test games to play (integer)
-    :return: evaluation metrics
-
-    # If the agent is set to learn, make sure it's switched back on before the function completes
-    restart_learn = training_player.learning == True
-
-    training_player.learning = False
-    test_env.player1 = training_player
-    test_env.player2 = test_player
-    test_winners = []
-    games = []
-    states = []
-    scores = []
-
-    for test_game in range(num_games):
-        # print("Test Game: {}".format(test_game))
-        game, winner, game_length, state_log, final_score = test_env.play(log=True)
-        test_winners.append(winner)
-        games.append(game)
-        states.append(state_log)
-        scores.append(final_score)
-
-        # SWITCH PLAYERS
-        p1 = test_env.player1
-        p2 = test_env.player2
-        test_env.player1 = p2
-        test_env.player2 = p1
-
-    win_percentage = float(test_winners.count(training_player.name)) / num_games
-    draw_percentage = float(test_winners.count('None')) / num_games
-    loss_percentage = float(test_winners.count(test.name)) / num_games
-
-    print("Current win percentage over agent {}: {:.2f}%".format(test.name, win_percentage * 100))
-    print("Current draw percentage over agent {}: {:.2f}%".format(test.name, draw_percentage * 100))
-    print("Current loss percentage over agent {}: {:.2f}%".format(test.name, loss_percentage * 100))
-
-    if restart_learn:
-        training_player.learning = True
-
-    return win_percentage, draw_percentage, loss_percentage
-"""
-
 
 def train_model():
     # INITIALISE VARS SUCH AS NUMBER OF GAMES, SAVE MODEL PATH AND LOG PATH
