@@ -1,2 +1,0 @@
-- Need to have get_obvs return some sort of q_values object of current board
-- This will allow agents to choose actions based on reward and not at random
