@@ -8,6 +8,7 @@ import numpy as np
 import random
 from DQN import DQN_model
 from gym_dotsboxes.environment import DotsBoxesEnv
+import math
 
 
 class UserPlayer:
@@ -37,33 +38,76 @@ class UserPlayer:
         return action
 
 
-class GreedyPlayer:
+class ApproxFeaturePlayer:
 
-    # GREEDY PLAYER ALWAYS COMPLETES A BOX IF IT CAN, AND AVOIDS
-    # SACRIFICING BOXES (I.E. PLACING A THIRD LINE OF A BOX THAT
-    # THE NEXT PLAYER MAY COMPLETE).
+    # PREVIOUS Q LEARNING MODEL THAT USED LINEAR APPROXIMATION OF FEATURES. IS GREEDY IN NATURE
+    # DUE TO BIAS IN FEATURE SELECTION AND INABILITY TO LEARN COMPLEX STRATEGY
     def __init__(self, env):
         self.env = env
 
     def act(self):
+        return None
+
+
+class GreedyPlayer:
+
+    # GREEDY PLAYER ALWAYS COMPLETES A BOX IF IT CAN
+    def __init__(self, env):
+        self.env = env
+
+    def act(self, current_state):
 
         # USING BOARD CURRENT STATE, CHOOSE AN OPTION THAT EITHER
         # - COMPLETES A BOX
-        # - FAILING THIS, RANDOM ACTION THAT DOES NOT CREATE THIRD
-        # LINE IN SQUARE
-        # - FAILING THIS, RANDOM ACTION (OUT OF ACTIONS THAT CREATE
-        # THIRD LINE IN SQUARE)
+        # - FAILING THIS, RANDOM ACTION
         if self.env is None:
             raise ValueError("Environment has not been set.")
 
+        # INIT DECISION LISTS
         greedy_actions = []
-        current_state = self.env.state
+        square_starts = []
+        square_combos = []
+
+        # INITIALISE VARS THAT HELP US DECIDE WHICH ACTIONS ARE IN WHICH SQUARES
+        square_starts_num = int((self.env.grid_size - 1) ** 2)
+        square_starts_per_row = int(math.sqrt(square_starts_num))
+        square_row_steps = int(self.env.num_actions / (self.env.grid_size - 1) - 1)
+
+        # CREATE A LIST OF ALL THE STARTING NUMBER EDGES OF ALL SQUARES
+        # POSSIBLE FOR SPECIFIC GRID
+        for i in range(0, self.env.num_actions - square_row_steps, square_row_steps):
+            for j in range(0, square_starts_per_row):
+                square_starts.append(i + j)
+
+        for i in square_starts:
+            square_side_step = self.env.grid_size - 1
+            square_combos.append([i, i + square_side_step, i + square_side_step + 1,
+                                  i + (2 * square_side_step) + 1])
 
         for action in self.env.available_actions:
-            # TODO: CHECK LOGIC HERE
-            greedy_actions.append(action)
+            # ITERATE THROUGH ALL SQUARE COMBINATIONS TO SEE IF THIS CURRENT ACTION
+            # IS THE ONE THAT WILL COMPLETE SQUARE(S), THUS GAINING AGENT REWARDS
+            for square in square_combos:
+                if action in square:
+                    square.remove(action)
+                    occupied_square_count = 0
+                    for x in square:
+                        if current_state != 0:
+                            occupied_square_count += 1
 
-        action = random.choice(greedy_actions)
+                    # WANT THE SCORE TO BE 3 NOT 4, AS AT THIS POINT THE ACTION
+                    # HASN'T HAPPENED, SO THE SQUARE SHOULD ONLY HAVE 3 SIDES
+                    # AND NOT 4
+                    if occupied_square_count == 3:
+                        greedy_actions.append(action)
+                    if occupied_square_count > 3:
+                        print("~~~~~This shouldn't happen!~~~~~")
+
+        if len(greedy_actions) == 0:
+            action = random.choice(self.env.available_actions)
+        else:
+            action = random.choice(greedy_actions)
+            print("THIS ACTION COMPLETES SQUARE: ", action)
 
         # APPLY ACTION TO ENVIRONMENT VIA STEP FUNCTION DEFINED IN
         # ENVIRONMENT CLASS
@@ -86,13 +130,10 @@ class DQNPlayer:
         self.past_state = None
         self.past_action = None
 
-    # def set_environment(self, environment):
-    #   self.env = environment
-
-    def act(self):
+    def act(self, current_state):
 
         # CHOOSES ACTION BASED ON DQN MODEL HIGHEST Q-VALUE PREDICTED
-        current_state = self.env.state
+        # current_state = self.env.state
         matrix = self.get_3D_matrix(current_state)
 
         # IF RANDOM NUMBER LESS THAN EPSILON, CHOOSE RANDOM ACTION, OTHERWISE
@@ -110,11 +151,6 @@ class DQNPlayer:
         self.past_action = action
 
         return action
-
-    def observe(self, state, reward):
-        # OBSERVE STATE REWARD PAIR
-        # TODO: NOT SURE WHAT THIS IS SUPPOSED TO DO, LEAVE BLANK FOR NOW
-        return None
 
     def get_3D_matrix(self, state):
 
@@ -151,8 +187,6 @@ class DQNPlayer:
         print(matrix)
         return matrix
 
-    # TODO: NEED TO USE THE BELOW UPDATE FUNCTIONS TO GET SOMETHING THAT TAKES STATE [0,1,1,2,...,0] AND TURNS IT INTO
-    #   A (2,24,2) SHAPED INPUT INTO REPLY TABLE WHICH CAN BE DRAWN FROM IN TRAIN STEP
     def update(self, current_state, past_action, next_state, reward, next_turn):
 
         print("update replay table states: ", current_state, next_state)
@@ -160,7 +194,6 @@ class DQNPlayer:
         # UPDATE REPLAY TABLE AND TRAIN DQN MODEL
         self.DQN.record_state([current_state, past_action, next_state, reward, next_turn])
         self.DQN.train()
-
 
     def init_DQN(self):
 
@@ -175,6 +208,5 @@ class DQNPlayer:
         checkpoint_path = "C:/Users/Emma/PycharmProjects/deep_q_learning/gym-dotsboxes/model_storage/cp-{" \
                           "epoch:04d}.ckpt "
 
-        # Save the weights using the `checkpoint_path` format
-        # TODO: THIS PROBABLY WON'T WORK UNTIL I FIX MODEL ARCH. NEEDS TO DO SAVE_WEGIHTS ON MODEL OBJECT
+        # SAVE MODEL WEIGHTS AS CHECKPOINT
         self.DQN.save_weights(checkpoint_path.format(epoch=i))

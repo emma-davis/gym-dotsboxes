@@ -20,11 +20,11 @@ class DotsBoxesEnv(gym.Env):
         self.a_score = 0
         self.mark = self.start_mark
         self.done = False
-        self.num_actions = 24  # HARDCODED FOR NOW, MAKE FLEXIBLE LATER
-        self.grid_size = 4  # ALSO HARDCODED FOR NOW, MAKE FLEXIBLE LATER
+        self.num_actions = 24
+        self.grid_size = 4
         self.available_actions = [i for i in range(self.num_actions)]
-        self.board = [0] * self.num_actions  # HARDCODED FOR NOW
-        self.state = [0] * self.num_actions#np.zeros([self.grid_size, self.grid_size, 4])
+        self.board = [0] * self.num_actions
+        self.state = [0] * self.num_actions
         self.margin = '  '
         self.code_mark_map = {0: '1', 1: 'A', 2: 'B'}
         self.action_space = spaces.Discrete(self.num_actions)
@@ -35,8 +35,9 @@ class DotsBoxesEnv(gym.Env):
     def reset(self):
         # RESET GAME BACK TO EMPTY BOARD AND 0 SCORES
         self.mark = self.start_mark
-        self.board = [0] * self.num_actions # HARDCODED FOR NOW
-        #self.state = np.zeros([self.grid_size, self.grid_size, 4])
+        self.board = [0] * self.num_actions
+        self.b_score = 0
+        self.a_score = 0
         self.done = False
         self.available_actions = [i for i in range(self.num_actions)]
         self.action_space = spaces.Discrete(self.num_actions)
@@ -93,11 +94,7 @@ class DotsBoxesEnv(gym.Env):
         return tuple(self.board), self.mark, self.state_num
 
     def step(self, action):
-        """
-        Returns observation of board once action is performed on it, the reward gained by agent,
-        whether the game is done as a result of the action and any extra information (currently set
-        as None).
-        """
+        # PROGRESS THE GAME VIA CHOSEN ACTION, RELAY NEW BOARD INFO TO CONSOLE
 
         # REMOVE ACTION FROM ACTION SPACE
         self.disable_action(action)
@@ -179,20 +176,13 @@ class DotsBoxesEnv(gym.Env):
         return self.get_obs(), 0, self.done, None
 
     def check_game_status(self, board, a_score, b_score):
-        """
-        Returns a list of [a_win, b_win, draw], where each total is the number
-        of complete squares each player has and each win is a boolean (T/F) stating if that
-        player has won yet, or if players have drawn.
-
-        """
+        # SEE STATE OF GAME IN TERMS OF SCORES, WHO IS WINNING AND IS THERE IS A DRAW
 
         a_total = a_score
         b_total = b_score
         a_win = False
         b_win = False
         draw = False
-
-        # TODO: CHANGE BELOW TO DEAL WITH ALL GRID SIZES, NOT JUST 4X4 (AS IS CURRENTLY)
 
         # IF A PLAYER HAS A SCORE OF 5 OR MORE, THEY AUTOMATICALLY WIN AS IT ISN'T POSSIBLE
         # FOR THE OTHER PLAYER TO GET 5 OR HIGHER.
@@ -221,28 +211,67 @@ class DotsBoxesEnv(gym.Env):
         self.print_board()
 
     def print_board(self):
-        """
-        Draw dots and boxes board.
-
-        # TODO: MAKE THIS MORE DYNAMIC AT SOME POINT TO CATER FOR DIFFERENT
-        # BOARD SIZES
-        """
+        # DRAW DOTS AND BOXES BOARD. THIS IS MOSTLY FOR SANITY CHECK TO SEE WHAT MODEL DOING.
+        # IN PROPER TRAINING PHASE THIS SHOULD BE COMMENTED OUT TO REDUCE COMPUTATIONAL EFFORT
         square_row_steps = int(self.num_actions / (self.grid_size - 1) - 1)
         cutoff_num = self.num_actions - self.grid_size + 1
 
         for j in range(0, self.num_actions, square_row_steps):
             def mark(i):
-                #return self.to_mark(self.board[i]) if not self.show_number or \
+                # return self.to_mark(self.board[i]) if not self.show_number or \
                 #                                 self.board[i] != 0 else str(i + 1)
-                #return self.to_mark(self.board[i] if self.board[i] != 0 else str(i + 1))
+                # return self.to_mark(self.board[i] if self.board[i] != 0 else str(i + 1))
                 return self.to_mark(self.board[i])
 
             if j == cutoff_num:
                 print(self.margin + 'o' + 'o'.join([mark(i) for i in range(j, j + self.grid_size - 1)]) + 'o')
             else:
                 print(self.margin + 'o' + 'o'.join([mark(i) for i in range(j, j + self.grid_size - 1)]) + 'o')
-                print(self.margin + ' '.join([mark(i) for i in range(j + self.grid_size - 1, j + (2 * self.grid_size) - 1)]))
+                print(self.margin + ' '.join(
+                    [mark(i) for i in range(j + self.grid_size - 1, j + (2 * self.grid_size) - 1)]))
 
     def print_turn(self, mark):
         # PRINT PLAYER TURN
         print("\n{}'s turn.".format(mark))
+
+    def print_result(self):
+        a_win, b_win, draw = check_game_status(self.board, self.a_score, self.b_score)
+        if a_win == True:
+            print("~~~~~ Finished: Winner is Player A! ~~~~~")
+        elif b_win == True:
+            print("~~~~~ Finished: Winner is Player B! ~~~~~")
+
+        if draw == True:
+            print("~~~~~ Finished: Draw ~~~~~")
+
+        print('')
+
+
+def check_game_status(board, a_score, b_score):
+    # CHECKS STATUS OF BOARD, WHICH INCLUDES STATUS OF WINS/DRAWS AND PLAYER SCORES
+
+    a_total = a_score
+    b_total = b_score
+    a_win = False
+    b_win = False
+    draw = False
+
+    # IF A PLAYER HAS A SCORE OF 5 OR MORE, THEY AUTOMATICALLY WIN AS IT ISN'T POSSIBLE
+    # FOR THE OTHER PLAYER TO GET 5 OR HIGHER.
+    if a_total >= 5:
+        a_win = True
+
+    if b_total >= 5:
+        b_win = True
+
+    # CHECK IF THERE ARE ANY MOVES LEFT ON BOARD TO PLAY. IF PRODUCT OF BOARD IS NO LONGER
+    # 0 THEN THERE ARE NO MORE MOVES AVAILABLE
+    if reduce((lambda x, y: x * y), board) != 0:
+        if a_total > b_total:
+            a_win = True
+        elif b_total > a_total:
+            b_win = True
+        else:
+            draw = True
+
+    return [a_win, b_win, draw]

@@ -19,8 +19,6 @@ class DQN_model:
         self.session = None
         self.q_values = None
         self.input_matrix = None
-        #self.loss_func = None
-        #self.optimizer = None
         self.target_q = None
         self.update_model = None
         self.output_gradient = None
@@ -36,15 +34,13 @@ class DQN_model:
         self.saver.restore(self.sess, model_dir)
 
     def predict(self, state_matrix):
-        #q_values = self.sess.run(self.q_values, feed_dict={self.input_matrix:state_matrix})
-        q_values = self.model.predict(state_matrix, steps=10) # ARBITRARY NUMBER OF STEPS HERE
+        # PREDICT Q VALUES USING MODEL
+        q_values = self.model.predict(state_matrix, steps=10)  # TODO: ARBITRARY NUMBER OF STEPS HERE, IMPROVE THESE
         print("PREDICTED Q VALS: ", q_values)
         return q_values
 
     def train(self):
-        """
-        Train the network based on replay table information
-        """
+        # TRAIN CNN USING REPLAY TABLE AFTER CERTAIN AMOUNT OF TURNS PASSED
         if self.transition_count >= self.replay_size / 2:
             if self.transition_count == self.replay_size / 2:
                 print("Replay Table Ready")
@@ -54,8 +50,7 @@ class DQN_model:
 
             print("Random Table: ", random_tbl)
 
-            # Get the information from the replay table
-            # TODO: NEED TO MAKE SURE WHOLE TRAINING FUNCTION WORKS WITH
+            # GET INFO FROM REPLAY TABLE AND SPLIT INTO ITS PARTS
             feature_vectors = np.vstack(random_tbl['state'])
             print("VStack State: ", feature_vectors)
             actions = random_tbl['action']
@@ -63,46 +58,40 @@ class DQN_model:
             rewards = random_tbl['reward']
             next_turn_vector = random_tbl['had_next_turn']
 
-            # Get the indices of the non-terminal states
+            # GET NON TERMINAL STATE INDICES
             non_terminal_ix = np.where([~np.any(np.isnan(next_feature_vectors), axis=(1, 2, 3))])[1]
             next_turn_vector[next_turn_vector == 0] = -1
 
             q_current = self.predict(feature_vectors)
-            # Default q_next will be all zeros (this encompasses terminal states)
+
+            # DEFAULT Q NEXT IS ALL ZEROS TO COVER TERMINAL STATES AND CREATE SHAPE
             q_next = np.zeros([self.update_size, self.output_size])
             q_next[non_terminal_ix] = self.predict(next_feature_vectors[non_terminal_ix])
 
-            # The target should be equal to q_current in every place
+            # TARGET SHOULD BE Q CURRENT. APPLY TANH TO REWARD TO FIT TO BETTER SCALE
             target = q_current.copy()
-
-            # Apply hyperbolix tangent non-linearity to reward
             rewards = np.tanh(rewards)
 
-            # Only actions that have been taken should be updated with the reward
-            # This means that the target - q_current will be [0 0 0 0 0 0 x 0 0....]
-            # so the gradient update will only be applied to the action taken
-            # for a given feature vector.
-            # The next turn vector controls for a conditional minimax. If the opponents turn is next,
-            # The value of the next state is actually the negative maximum across all actions. If our turn is next,
-            # The value is the maximum.
+            # ONLY UPDATE ACTIONS TAKEN WITH REWARD, AND DO SO IN Q LEARNING WAY (BELLMAN EQU, SEE BELOW)
+            # GRADIENT UPDATE ONLY APPLIED TO ACTION TAKEN TOO FOR GIVEN STATE
             target[np.arange(len(target)), actions] += (rewards + self.gamma * next_turn_vector * q_next.max(axis=1))
 
-            # Update the model
+            # UPDATE MODEL
             self.sess.run(self.update_model, feed_dict={self.input_matrix: feature_vectors, self.target_Q: target})
 
     def build_DQN(self):
 
-        # DEFINE CNN ARCHITECTURE WITH 2 CONV LAYERS
+        # DEFINE CNN ARCHITECTURE
 
         # FINAL DECISION ON INPUT SHAPE:
-        # (3, 3, 4) TUPLE: 3X3 IS BOXES AND 4 IS N/E/S/W LINE POSITION AROUND BOXES. POSSIBLY (4,3,3) INSTEAD?
+        # (4, 3, 3) TUPLE: 3X3 IS BOXES AND 4 IS N/E/S/W LINE POSITION AROUND BOXES
         print("INPUT SHAPE: ", self.input_shape)
         print("OUTPUT SHAPE: ", self.output_size)
         model = models.Sequential()
         model.add(layers.Conv2D(32, (3, 3), activation='relu', input_shape=self.input_shape))
-        model.add(layers.MaxPooling2D((2,2), strides=(2,2), padding='same'))
+        model.add(layers.MaxPooling2D((2, 2), strides=(2, 2), padding='same'))
         model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
-        model.add(layers.MaxPooling2D((2,2), strides=(2,2), padding='same'))
+        model.add(layers.MaxPooling2D((2, 2), strides=(2, 2), padding='same'))
         model.add(layers.Conv2D(64, (3, 3), activation='relu', padding='same'))
 
         # FLATTEN OUT TO FIT OUTPUT SHAPE, WHICH IS ONE PREDICTED Q VALUE FOR EACH OF 24 ACTIONS
@@ -113,35 +102,12 @@ class DQN_model:
         # GET SUMMARY OF MODEL ARCHITECTURE
         model.summary()
 
-        """
-        model = tf.keras.models.Sequential([
-            # FIRST CONVOLUTION
-            tf.keras.layers.Conv2D(16, (3, 3), activation='relu', input_shape=self.input_shape),
-            tf.keras.layers.MaxPooling2D(2, 2),
-
-            # SECOND CONVOLUTION
-            tf.keras.layers.Conv2D(32, (3, 3), activation='relu'),
-            tf.keras.layers.MaxPooling2D(2, 2),
-
-            # FLATTEN TO FEED INTO DENSE NN
-            tf.keras.layers.Flatten(),
-
-            # 256 NEURON DENSE LAYER
-            tf.keras.layers.Dense(256, activation='relu'),
-
-            # OUTPUT LAYER WITH 24 POSSIBILITIES, ONE NODE FOR EACH ACTION
-            tf.keras.layers.Dense(24, activation='relu')
-        ])
-        """
-
         # ESTABLISH OUTPUT Q_VALUES AND TARGET Q_VALUES TO CALCULATE LOSS
         self.q_values = output
         self.target_q = tf.keras.Input(shape=self.output_size, name='Target')
 
-        # TODO: CANT USE Q_VALUES AND TARGET_Q HERE YET? MAKE SURE THE OPTIMIZER AND LOSS FUNCTIONS FIT WHAT TRYING
-        #  TO ACHEIVE
         model.compile(
-            optimizer='rmsprop', loss=tf.keras.losses.SparseCategoricalCrossentropy(),#tf.keras.losses.mean_squared_error(self.target_q, self.q_values),
+            optimizer='rmsprop', loss=tf.keras.losses.SparseCategoricalCrossentropy(),
             metrics=['accuracy'], loss_weights=None, weighted_metrics=None, run_eagerly=None
         )
 

@@ -5,16 +5,15 @@ from gym_dotsboxes.environment import DotsBoxesEnv
 from players import GreedyPlayer, DQNPlayer
 import random
 
-
+"""
 def test(test_env, training_player, test_player, num_games):
-    """
+
     Tests an environment against a test agent
     :param test_env: game environment
     :param train: learning agent
     :param test: testing agent
     :param test_games: number of test games to play (integer)
     :return: evaluation metrics
-    """
 
     # If the agent is set to learn, make sure it's switched back on before the function completes
     restart_learn = training_player.learning == True
@@ -53,6 +52,7 @@ def test(test_env, training_player, test_player, num_games):
         training_player.learning = True
 
     return win_percentage, draw_percentage, loss_percentage
+"""
 
 
 def train_model():
@@ -73,8 +73,6 @@ def train_model():
     player_A.init_DQN()
     player_B = GreedyPlayer(env=env)
 
-    # TODO: GET PATH WHERE MODEL IS SAVED AND LOADED FROM
-
     # START PLAYING
     for i in range(num_games):
 
@@ -82,11 +80,7 @@ def train_model():
         start_mark = random.choice(['A', 'B'])
         env.set_start_mark(start_mark)
         state = env.reset()
-        print(state)
         done = False
-
-        # TODO: WRITE PLAY FUNCTION GET ALL AVAILABLE ACTIONS AS ALL ACTIONS, AND SET AVAILABLE ACTIONS AS ALL ACTIONS
-        #  AT START OF GAME
 
         while not done:
 
@@ -103,15 +97,13 @@ def train_model():
                 # GREEDY PLAYER PICKS ACTION THAT COMPLETES
                 # SQUARE (IF IT CAN) WHILE AVOIDING SACRIFICING
                 # SQUARE
-                action = player_B.act()
+                action = player_B.act(list(state[0]))
             else:
                 # DQN AGENT PICKS ACTION BASED ON MAX PREDICTED
                 # FROM CURRENT STATE
-                action = player_A.act()
+                action = player_A.act(list(state[0]))
 
             print("ACTION: " + str(action))
-
-            # TODO: THIS INFO NEEDS TO BE FED INTO THE UPDATING WEIGHTS STEP TO TRAIN MODEL - FIGURE OUT HOW TO DO THIS
 
             next_state, reward, done, info = env.step(action)
 
@@ -120,15 +112,17 @@ def train_model():
             env.render()
 
             if done:
-                env.print_result(mark, reward)
+                env.print_result()
                 break
             else:
                 _, mark, state_num = state
 
             # MOVE TO NEXT STATE AFTER ACTION TAKEN
             state = next_state
+            print("NEXT STATE: ", state)
             print("\n\n")
 
+        # BELOW IS WORK IN PROGRESS TO TRACK ACCURACY OF MODEL
         """
         # OUTPUT TEST OF CURRENT TRAINING DQN AGENT TO TRACK TRAINING PROGRESS
         if i % 1000 == 0:
