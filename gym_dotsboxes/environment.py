@@ -100,35 +100,23 @@ class DotsBoxesEnv(gym.Env):
         self.disable_action(action)
 
         square_starts_num = int((self.grid_size - 1) ** 2)
-        square_starts_per_row = int(math.sqrt(square_starts_num))
-        square_row_steps = int(self.num_actions / (self.grid_size - 1) - 1)
 
         # GET TOTALS OF PLAYERS BEFORE ACTION COMPLETED IN THIS STEP
         a_old_total = self.a_score
         b_old_total = self.b_score
 
-        square_starts = []
-        square_combos = []
-
-        # CREATE A LIST OF ALL THE STARTING NUMBER EDGES OF ALL SQUARES
-        # POSSIBLE FOR SPECIFIC GRID
-        for i in range(0, self.num_actions - square_row_steps, square_row_steps):
-            for j in range(0, square_starts_per_row):
-                square_starts.append(i + j)
-
-        for i in square_starts:
-            square_side_step = self.grid_size - 1
-            square_combos.append([i, i + square_side_step, i + square_side_step + 1,
-                                  i + (2 * square_side_step) + 1])
+        square_combos = [[0, 3, 4, 7], [1, 4, 5, 8], [2, 5, 6, 9], [7, 10, 11, 14], [8, 11, 12, 15], [9, 12, 13, 16],
+                         [14, 17, 18, 21], [15, 18, 19, 22], [16, 19, 20, 23]]
 
         # ITERATE THROUGH ALL SQUARE COMBINATIONS TO SEE IF THIS CURRENT ACTION
         # IS THE ONE THAT WILL COMPLETE SQUARE(S), THUS GAINING AGENT REWARDS
         num_squares_won = 0
         for square in square_combos:
+            temp = square.copy()
             if action in square:
-                square.remove(action)
+                temp.remove(action)
                 occupied_square_count = 0
-                for x in square:
+                for x in temp:
                     if self.board[x] != 0:
                         occupied_square_count += 1
 
@@ -141,8 +129,8 @@ class DotsBoxesEnv(gym.Env):
                     print("~~~~~This shouldn't happen!~~~~~")
 
         loc = action
-        if self.done:
-            return self.get_obs(), 0, True, None
+        #if self.done:
+        #    return self.get_obs(), 0, True, None
 
         # ADD TO SCORES
         if self.mark == "A":
@@ -156,8 +144,22 @@ class DotsBoxesEnv(gym.Env):
         self.board[loc] = self.to_num(self.mark)
         a_win, b_win, draw = self.check_game_status(self.board, self.a_score, self.b_score)
 
-        if a_win == True | b_win == True | draw == True:
+        # SET REWARDS (IF ANY). IF A WIN (ASSUMING A IS DQN) THEN 1, IF B WIN THEN -1, IF DRAW THEN 0
+        reward = None
+
+        # IF AGENT WON SQUARE THEN ADD SMALL REWARD
+        if num_squares_won > 0:
+            reward = 0.8
+
+        if a_win:
             self.done = True
+            reward = 1
+        if b_win:
+            self.done = True
+            reward = -1
+        if draw:
+            self.done = True
+            reward = 0
 
         print(" A New Total: ", self.a_score)
         print(" B New Total: ", self.b_score)
@@ -173,7 +175,9 @@ class DotsBoxesEnv(gym.Env):
             self.mark = self.next_mark(self.mark)
             print("Switch turns.")
 
-        return self.get_obs(), 0, self.done, None
+        print("DONE?: ", self.done)
+
+        return self.get_obs(), reward, self.done, None
 
     def check_game_status(self, board, a_score, b_score):
         # SEE STATE OF GAME IN TERMS OF SCORES, WHO IS WINNING AND IS THERE IS A DRAW

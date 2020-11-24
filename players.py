@@ -21,7 +21,7 @@ class UserPlayer:
     # def set_environment(self, environment):
     #    self.env = environment
 
-    def act(self):
+    def act(self, state):
 
         if self.env is None:
             raise ValueError("Environment has not been set.")
@@ -34,7 +34,7 @@ class UserPlayer:
 
         # APPLY ACTION TO ENVIRONMENT VIA STEP FUNCTION DEFINED IN
         # ENVIRONMENT CLASS
-        self.env.step(action)
+        # self.env.step(action)
 
         return action
 
@@ -346,7 +346,7 @@ class GreedyPlayer:
     def __init__(self, env):
         self.env = env
 
-    def act(self, current_state):
+    def act(self, current_state, i):
 
         # USING BOARD CURRENT STATE, CHOOSE AN OPTION THAT EITHER
         # - COMPLETES A BOX
@@ -356,34 +356,20 @@ class GreedyPlayer:
 
         # INIT DECISION LISTS
         greedy_actions = []
-        square_starts = []
-        square_combos = []
-
-        # INITIALISE VARS THAT HELP US DECIDE WHICH ACTIONS ARE IN WHICH SQUARES
-        square_starts_num = int((self.env.grid_size - 1) ** 2)
-        square_starts_per_row = int(math.sqrt(square_starts_num))
-        square_row_steps = int(self.env.num_actions / (self.env.grid_size - 1) - 1)
-
-        # CREATE A LIST OF ALL THE STARTING NUMBER EDGES OF ALL SQUARES
-        # POSSIBLE FOR SPECIFIC GRID
-        for i in range(0, self.env.num_actions - square_row_steps, square_row_steps):
-            for j in range(0, square_starts_per_row):
-                square_starts.append(i + j)
-
-        for i in square_starts:
-            square_side_step = self.env.grid_size - 1
-            square_combos.append([i, i + square_side_step, i + square_side_step + 1,
-                                  i + (2 * square_side_step) + 1])
+        square_combos = [[0, 3, 4, 7], [1, 4, 5, 8], [2, 5, 6, 9],
+                         [7, 10, 11, 14], [8, 11, 12, 15], [9, 12, 13, 16],
+                         [14, 17, 18, 21], [15, 18, 19, 22], [16, 19, 20, 23]]
 
         for action in self.env.available_actions:
             # ITERATE THROUGH ALL SQUARE COMBINATIONS TO SEE IF THIS CURRENT ACTION
             # IS THE ONE THAT WILL COMPLETE SQUARE(S), THUS GAINING AGENT REWARDS
             for square in square_combos:
+                temp = square.copy()
                 if action in square:
-                    square.remove(action)
+                    temp.remove(action)
                     occupied_square_count = 0
-                    for x in square:
-                        if current_state != 0:
+                    for x in temp:
+                        if x not in self.env.available_actions:
                             occupied_square_count += 1
 
                     # WANT THE SCORE TO BE 3 NOT 4, AS AT THIS POINT THE ACTION
@@ -398,18 +384,25 @@ class GreedyPlayer:
             action = random.choice(self.env.available_actions)
         else:
             action = random.choice(greedy_actions)
-            print("THIS ACTION COMPLETES SQUARE: ", action)
 
         # APPLY ACTION TO ENVIRONMENT VIA STEP FUNCTION DEFINED IN
         # ENVIRONMENT CLASS
         # self.env.step(action)
+
+        # MAKE AGENT RANDOM AT START THEN SLOWLY MOVE TO FULLY GREEDY FROM THERE
+        if i < 10000:
+            action = random.choice(self.env.available_actions)
+        elif i < 25000:
+            x = random.randint(0, 1)
+            if x == 1:
+                action = random.choice(self.env.available_actions)
 
         return action
 
 
 class DQNPlayer:
 
-    def __init__(self, env, alpha=0.001, epsilon=0.05, gamma=0.9):
+    def __init__(self, env, alpha=0.01, epsilon=0.05, gamma=0.85):
         self.env = env
         self.learning = True
         self.alpha = alpha
@@ -429,14 +422,19 @@ class DQNPlayer:
 
         # IF RANDOM NUMBER LESS THAN EPSILON, CHOOSE RANDOM ACTION, OTHERWISE
         # PICK VALID ACTION THAT YIELDS HIGHEST PREDICTED Q VALUE FROM DQN MODEL
-        if random.random() < self.epsilon and self.learning:
+        if random.random() < self.epsilon:
             action = np.random.choice(self.env.available_actions)
         else:
             q_values = self.DQN.predict(matrix)[0]
+            print(q_values)
             max_q = q_values[self.env.available_actions].max()
             best_actions = np.where(q_values == max_q)[0]
 
-            action = random.choice([action for action in best_actions if action in self.env.available_actions])
+            if len([action for action in best_actions if action in self.env.available_actions]) is not 0:
+                print("~~~~~~~~~~~CHOOSING VIA DQN...~~~~~~~~~~~~~")
+                action = random.choice([action for action in best_actions if action in self.env.available_actions])
+            else:
+                action = np.random.choice(self.env.available_actions)
 
         self.past_state = matrix.copy()
         self.past_action = action
@@ -475,15 +473,23 @@ class DQNPlayer:
 
         # NEED TO ADD THIS TO CREATE EXTRA NONE DIMENSION FOR FEEDING INTO MODEL
         matrix = matrix[None, :]
-        print(matrix)
         return matrix
+
+    def get_training_info(self, state, reward):
+        # COULD PROBABLY JUST DO THIS IN TRAIN_MODEL
+        have_next_turn = int(self._environment.current_player == self)
+
+        if self._environment.state is not None:
+            next_feature_vector = self.generate_input_vector(state)
+        else:
+            next_feature_vector = None
+
+        self.update(self.last_state, self.last_action, next_feature_vector, reward, have_next_turn)
 
     def update(self, current_state, past_action, next_state, reward, next_turn):
 
-        print("update replay table states: ", current_state, next_state)
-
         # UPDATE REPLAY TABLE AND TRAIN DQN MODEL
-        self.DQN.record_state([current_state, past_action, next_state, reward, next_turn])
+        self.DQN.record_state((current_state, past_action, next_state, reward, next_turn))
         self.DQN.train()
 
     def init_DQN(self):
